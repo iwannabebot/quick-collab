@@ -1,1 +1,1 @@
-# collab-edit
+# quick-collab
