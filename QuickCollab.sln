@@ -5,8 +5,6 @@ VisualStudioVersion = 17.4.33205.214
 MinimumVisualStudioVersion = 10.0.40219.1
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "QuickCollab.Server", "QuickCollab.Server\QuickCollab.Server.csproj", "{3C93C8B1-F773-4B00-BBA4-29ED088AAC5C}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "WebApplication1", "WebApplication1\WebApplication1.csproj", "{4DC02C0F-564D-4684-8DBB-9724A6DF25BE}"
-EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -17,10 +15,6 @@ Global
 		{3C93C8B1-F773-4B00-BBA4-29ED088AAC5C}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{3C93C8B1-F773-4B00-BBA4-29ED088AAC5C}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{3C93C8B1-F773-4B00-BBA4-29ED088AAC5C}.Release|Any CPU.Build.0 = Release|Any CPU
-		{4DC02C0F-564D-4684-8DBB-9724A6DF25BE}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
-		{4DC02C0F-564D-4684-8DBB-9724A6DF25BE}.Debug|Any CPU.Build.0 = Debug|Any CPU
-		{4DC02C0F-564D-4684-8DBB-9724A6DF25BE}.Release|Any CPU.ActiveCfg = Release|Any CPU
-		{4DC02C0F-564D-4684-8DBB-9724A6DF25BE}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

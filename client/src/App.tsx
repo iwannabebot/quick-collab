@@ -12,6 +12,7 @@ import CollabEditor from './tools/collab-edit/editor/CollabEditor';
 import { AccountCircle } from '@mui/icons-material';
 import { Login } from './auth/Login';
 import { Room } from './room/Room';
+import CollabBoard from './tools/whiteboard/CollabBoard';
 
 
 
@@ -94,10 +95,11 @@ export const App: React.FC = () => {
         </Container>
       </AppBar>
       <Routes>
-        <Route index element={<Home hubBuilder={hubBuilder} />}></Route>
+        <Route index element={<Room hubBuilder={hubBuilder} />}></Route>
         <Route path='/room' element={<Room hubBuilder={hubBuilder} />}></Route>
         <Route path='/login' element={<Login />}></Route>
         <Route path='/code/:roomId' element={<CollabEditor hubBuilder={hubBuilder} />}></Route>
+        <Route path='/whiteboard/:roomId' element={<CollabBoard hubBuilder={hubBuilder} />}></Route>
       </Routes>
     </React.Fragment>
   );

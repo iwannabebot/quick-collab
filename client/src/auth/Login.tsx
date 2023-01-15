@@ -101,7 +101,7 @@ export const Login: React.FC = () => {
 
         setLogging(true);
         try {
-            const authResponse: Response = await fetch("https://localhost:7003/users/bearertoken", {
+            const authResponse: Response = await fetch("https://localhost:7003/users/login", {
                 body: JSON.stringify({
                     email: em,
                     password: pass
@@ -117,7 +117,7 @@ export const Login: React.FC = () => {
                 sessionStorage.setItem("auth", responseText);
 
                 if (location.state.from) {
-                    window.open(location.state.from, "_self");
+                    navigate(location.state.from);
                 }
             } else {
                 setLoggingFailOpen(true);

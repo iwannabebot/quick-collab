@@ -1,8 +1,11 @@
-﻿using Microsoft.AspNetCore.Identity;
+﻿using Microsoft.AspNetCore.Authentication.Cookies;
+using Microsoft.AspNetCore.Authentication;
+using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
 using QuickCollab.Server.Data.Models;
 using QuickCollab.Server.Models;
 using QuickCollab.Server.Services;
+using System.Security.Claims;
 using System.Security.Cryptography;
 using System.Text;
 
@@ -70,8 +73,8 @@ namespace QuickCollab.Server.Controllers
             return CreatedAtAction("GetUser", new { Email = user.Email }, user);
         }
 
-        [HttpPost("BearerToken")]
-        public async Task<ActionResult<AuthenticationResponse>> CreateBearerToken(AuthenticationRequest request)
+        [HttpPost("Login")]
+        public async Task<ActionResult<AuthenticationResponse>> Login(AuthenticationRequest request)
         {
             if (!ModelState.IsValid)
             {
@@ -93,6 +96,21 @@ namespace QuickCollab.Server.Controllers
             }
 
             var token = _jwtService.CreateToken(user);
+
+            var identity = new ClaimsIdentity(CookieAuthenticationDefaults.AuthenticationScheme, ClaimTypes.Name, ClaimTypes.Role);
+            identity.AddClaim(new Claim(ClaimTypes.NameIdentifier, user.UserName));
+            identity.AddClaim(new Claim(ClaimTypes.Name, user.UserName));
+            var principal = new ClaimsPrincipal(identity);
+            await HttpContext.SignInAsync(
+                CookieAuthenticationDefaults.AuthenticationScheme,
+                principal,
+                new AuthenticationProperties
+                {
+                    IsPersistent = true,
+                    AllowRefresh = true,
+                    ExpiresUtc = DateTime.UtcNow.AddDays(1)
+                });
+
 
             return Ok(token);
         }

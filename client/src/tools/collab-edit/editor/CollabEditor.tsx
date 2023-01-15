@@ -1,4 +1,4 @@
-import React, { useRef, useState, useEffect, useCallback } from 'react';
+import React, { useRef, useState, useEffect, useCallback, ChangeEvent } from 'react';
 import logo from './logo.svg';
 import './CollabEditor.css';
 
@@ -9,15 +9,114 @@ import Editor, { useMonaco } from "@monaco-editor/react";
 import { BasePageProps } from '../../../BasePageProps';
 import { useLocation, useNavigate, useParams } from 'react-router-dom';
 import { getToken } from '../../../auth/authService';
+import { Dialog, DialogTitle, DialogContent, DialogContentText, TextField, DialogActions, CircularProgress, Button } from '@mui/material';
 
 // monaco
 export type Monaco = typeof monaco;
 
 export const CollabEditor: React.FC<BasePageProps> = (props) => {
 
-  const roomId = useParams();
   const navigate = useNavigate();
   const location = useLocation();
+
+  const roomId = useParams();
+  const [roomKey, setRoomKey] = useState<string | null>(null);
+
+  useEffect(() => {
+    const roomKey = (roomId as any)["roomId"];
+    setRoomKey(roomKey);
+  }, [roomId]);
+
+  const [socketConnection, setSocketConnection] = useState<signalR.HubConnection | null>(null);
+
+  const createConnection = async () => {
+    if (props.hubBuilder) {
+      let connection = props.hubBuilder.withUrl("https://localhost:7003/hubs/collab-code", { accessTokenFactory: () => getToken() }).build();
+      try {
+        await connection.start();
+        setSocketConnection(connection);
+      } catch (e: any) {
+        if (e.errorType === "FailedToNegotiateWithServerError") {
+          if (e.message && e.message.indexOf("Status code '401'") !== -1) {
+            navigate("/login", {
+              state: {
+                // eslint-disable-next-line no-restricted-globals
+                from: location.pathname
+              }
+            });
+          }
+        }
+      }
+    }
+  };
+
+  const joinRoom = useCallback(async () => {
+    if (socketConnection) {
+      await socketConnection.send("JoinRoom", roomKey);
+    }
+  }, [socketConnection]);
+
+  const leaveRoom = useCallback(async () => {
+    if (socketConnection) {
+      await socketConnection.send("LeaveRoom", roomKey);
+    }
+  }, [socketConnection]);
+
+
+  useEffect(() => {
+    if (socketConnection) {
+      socketConnection.onreconnecting((error?: Error) => {
+        if (error?.name === "FailedToNegotiateWithServerError") {
+          if (error.message && error.message.indexOf("Status code '401'") !== -1) {
+            navigate("/login", {
+              state: {
+                // eslint-disable-next-line no-restricted-globals
+                from: location.pathname
+              }
+            });
+          }
+        }
+      });
+      socketConnection.onclose((error?: Error) => {
+        if (error?.name === "FailedToNegotiateWithServerError") {
+          if (error.message && error.message.indexOf("Status code '401'") !== -1) {
+            navigate("/login", {
+              state: {
+                // eslint-disable-next-line no-restricted-globals
+                from: location.pathname
+              }
+            });
+          }
+        }
+        console.warn(error);
+      });
+
+      socketConnection.on("CollabHub.UnauthorizedRoom", () => {
+        navigate("/room", {
+          state: {
+            // eslint-disable-next-line no-restricted-globals
+            from: location.pathname,
+            roomId: roomKey
+          }
+        });
+      });
+
+      socketConnection.on("CollabHub.JoinRoom", (args: any) => {
+        console.log("RoomJoined", args);
+      });
+
+      socketConnection.on("CollabHub.LeaveRoom", (args: any) => {
+        console.log("RoomLeft", args);
+      });
+
+      if (roomKey)
+        joinRoom();
+    }
+  }, [socketConnection]);
+
+  useEffect(() => {
+    createConnection();
+  }, [props.hubBuilder]);
 
   const monacoObj = useMonaco();
   const editorRef = useRef<monaco.editor.IStandaloneCodeEditor | null>(null);
@@ -26,24 +125,12 @@ export const CollabEditor: React.FC<BasePageProps> = (props) => {
   const [editorContentManager, setEditorContentManager] = useState<collab.EditorContentManager | null>(null);
   const [remoteSelection, setRemoteSelection] = useState<collab.RemoteSelection | null>(null);
   const [remoteCursor, setRemoteCursor] = useState<collab.RemoteCursor | null>(null);
-  const [socketConnection, setSocketConnection] = useState<signalR.HubConnection | null>(null);
-  const [roomKey, setRoomKey] = useState<string | null>(null);
-
-  useEffect(() => {
-    const roomKey = (roomId as any)["roomId"];
-    setRoomKey(roomKey);
-  }, [roomId]);
-
+  
   const handleEditorWillMount = (monaco: Monaco) => {
-    console.log("beforeMount: the monaco instance:", monaco);
-    // here is the monaco instance
-    // do something before editor is mounted
     monaco.languages.typescript.javascriptDefaults.setEagerModelSync(true);
   };
 
   const handleEditorDidMount = (editor: monaco.editor.IStandaloneCodeEditor, monaco: Monaco) => {
-    console.log("onMount: the editor instance:", editor);
-    console.log("onMount: the monaco instance:", monaco);
     editorRef.current = editor;
     const _remoteCursorManager = new collab.RemoteCursorManager({
       editor: editor,
@@ -74,8 +161,6 @@ export const CollabEditor: React.FC<BasePageProps> = (props) => {
     editorRef.current?.onDidChangeCursorSelection((e) => {
       console.log(JSON.stringify(e));
     });
-    // setRemoteSelection(_remoteSelectionManager?.addSelection("jDoe", "red", "John Doe"));
-    // setRemoteCursor(_remoteCursorManager?.addCursor("jDoe", "blue", "John Doe"));
   };
 
   const handleEditorChange = (value: string | undefined, event: monaco.editor.IModelContentChangedEvent) => {
@@ -87,111 +172,37 @@ export const CollabEditor: React.FC<BasePageProps> = (props) => {
     // markers.forEach(marker => console.log('onValidate:', marker.message));
   };
 
-  const joinRoom = useCallback(async () => {
-    if (socketConnection) {
-      const roomPass = sessionStorage.getItem("room:" + roomKey);
-      await socketConnection.send("JoinRoom", roomKey, roomPass);
-    }
-  }, [socketConnection]);
-
-  const leaveRoom = useCallback(async () => {
-    if (socketConnection) {
-      const roomPass = sessionStorage.getItem("room:" + roomKey);
-      await socketConnection.send("LeaveRoom", roomKey, roomPass);
-    }
-  }, [socketConnection]);
-
   useEffect(() => {
-    if (socketConnection) {
-      socketConnection.onreconnecting((error?: Error) => {
-        if (error?.name === "FailedToNegotiateWithServerError") {
-          if (error.message && error.message.indexOf("Status code '401'") !== -1) {
-            navigate("/login", {
-              state: {
-                // eslint-disable-next-line no-restricted-globals
-                from: location.pathname
-              }
-            });
-          }
-        }
-        console.warn(error);
-      });
-      socketConnection.onclose((error?: Error) => {
-        if (error?.name === "FailedToNegotiateWithServerError") {
-          if (error.message && error.message.indexOf("Status code '401'") !== -1) {
-            navigate("/login", {
-              state: {
-                // eslint-disable-next-line no-restricted-globals
-                from: location.pathname
-              }
-            });
-          }
-        }
-        console.warn(error);
-      });
-      socketConnection.on("CollabCodeJoinRoom", (args: any) => {
-        console.log("RoomJoined", args);
-      });
-
-      socketConnection.on("connectionWillReconnect", () => {
-        console.log("connectionWillReconnect");
-      });
-      socketConnection.on("CollabCodeLeaveRoom", (args: any) => {
-        console.log("RoomLeft", args);
-      });
-
-      socketConnection.on("CollabCodeSetSelection", (args: any) => {
+    if(socketConnection && editorRef && editorRef.current) {
+      socketConnection.on("CollabHub.Code.SetSelection", (args: any) => {
         console.log("SetSelection", args);
       });
 
-      socketConnection.on("CollabCodeResetSelection", (args: any) => {
+      socketConnection.on("CollabHub.Code.ResetSelection", (args: any) => {
         console.log("ResetSelection", args);
       });
 
-      socketConnection.on("CollabCodeSetCursor", (args: any) => {
+      socketConnection.on("CollabHub.Code.SetCursor", (args: any) => {
         console.log("SetCursor", args);
       });
 
-      socketConnection.on("CollabCodeResetCursor", (args: any) => {
+      socketConnection.on("CollabHub.Code.ResetCursor", (args: any) => {
         console.log("ResetCursor", args);
       });
 
-      socketConnection.on("CollabCodeAddContent", (args: any) => {
+      socketConnection.on("CollabHub.Code.AddContent", (args: any) => {
         console.log("AddContent", args);
       });
 
-      socketConnection.on("CollabCodeRemoveContent", (args: any) => {
+      socketConnection.on("CollabHub.Code.RemoveContent", (args: any) => {
         console.log("RemoveContent", args);
       });
-      if (roomKey)
-        joinRoom();
     }
-  }, [socketConnection]);
+  }, [socketConnection, editorRef, editorRef.current]);
 
-  const createConnection = async () => {
-    if (props.hubBuilder) {
-      let connection = props.hubBuilder.withUrl("https://localhost:7003/hubs/collab-code", { accessTokenFactory: () => getToken() }).build();
-      try {
-        await connection.start();
-        setSocketConnection(connection);
-      } catch (e: any) {
-        if (e.errorType === "FailedToNegotiateWithServerError") {
-          if (e.message && e.message.indexOf("Status code '401'") !== -1) {
-            navigate("/login", {
-              state: {
-                // eslint-disable-next-line no-restricted-globals
-                from: location.pathname
-              }
-            });
-          }
-        }
-      }
-    }
-  };
+  
 
-  useEffect(() => {
-    createConnection();
-  }, [props.hubBuilder])
+  
 
 
   return (

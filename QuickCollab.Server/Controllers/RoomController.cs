@@ -7,6 +7,7 @@ using Microsoft.Extensions.Caching.Memory;
 using QuickCollab.Server.Data;
 using QuickCollab.Server.Hubs;
 using QuickCollab.Server.Models;
+using System.Security.Claims;
 using System.Security.Cryptography;
 using System.Text;
 using System.Xml.Linq;
@@ -32,11 +33,11 @@ namespace QuickCollab.Server.Controllers
         }
 
         [Authorize]
-        [HttpGet("{roomId}")]
+        [HttpPost("{roomId}")]
         public async Task<ActionResult<Room>> GetRoom(string roomId)
         {
-            var room = await _collabContext.CollabRooms.FirstOrDefaultAsync(room => room.RoomId== roomId);
-            
+            var room = await _collabContext.CollabRooms.FirstOrDefaultAsync(room => room.RoomId == roomId);
+
             if (room == null)
             {
                 return NotFound();
@@ -44,15 +45,44 @@ namespace QuickCollab.Server.Controllers
 
             return new Room
             {
-                RoomId= room.RoomId,
-                IsActive= room.IsActive,
+                RoomId = room.RoomId,
+                IsActive = room.IsActive,
+                ToolName = room.ToolName,
+            };
+        }
+
+        [Authorize]
+        [HttpPost("join")]
+        public async Task<ActionResult<Room>> JoinRoom([FromBody] RoomGetRequest _room)
+        {
+            var room = await _collabContext.CollabRooms.FirstOrDefaultAsync(room => room.RoomId == _room.RoomId);
+
+            if (room == null)
+            {
+                return NotFound();
+            }
+
+            if (_room.Password.GetHashedValue() == room.HashedPassword)
+            {
+                _memoryCache.Set($"{Models.Cache.Keys.RoomUser}:{room.RoomId}:{User?.FindFirst(ClaimTypes.Email)?.Value}", true);
+                _memoryCache.Set($"{Models.Cache.Keys.RoomActive}:{room.RoomId}", DateTime.UtcNow);
+            }
+            else
+            {
+                return Forbid();
+            }
+
+            return new Room
+            {
+                RoomId = room.RoomId,
+                IsActive = room.IsActive,
                 ToolName = room.ToolName,
             };
         }
 
         [Authorize]
         [HttpPost]
-        public async Task<ActionResult<Room>> PostRoom([FromBody] RoomCreateRequest room)
+        public async Task<ActionResult<Room>> CreateRoom([FromBody] RoomCreateRequest room)
         {
             if (!ModelState.IsValid)
             {
@@ -61,7 +91,7 @@ namespace QuickCollab.Server.Controllers
 
             var newRoom = new Data.Models.CollabRoom
             {
-                CreatedBy = User.Identity.Name,
+                CreatedBy = User?.FindFirst(ClaimTypes.Email)?.Value,
                 CreatedOn = DateTime.UtcNow,
                 HashedPassword = room.Password.GetHashedValue(),
                 IsActive = true,
@@ -72,7 +102,7 @@ namespace QuickCollab.Server.Controllers
             
             await _collabContext.CollabRooms.AddAsync(newRoom);
             await _collabContext.SaveChangesAsync();
-            _memoryCache.Set($"{Models.Cache.Keys.RoomPass}:{newRoom.RoomId}", newRoom.HashedPassword);
+            _memoryCache.Set($"{Models.Cache.Keys.RoomUser}:{newRoom.RoomId}:{User?.FindFirst(ClaimTypes.Email)?.Value}", true);
             _memoryCache.Set($"{Models.Cache.Keys.RoomActive}:{newRoom.RoomId}", DateTime.UtcNow);
             return Created("", new Room
             {

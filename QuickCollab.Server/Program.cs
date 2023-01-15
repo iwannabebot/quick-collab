@@ -1,8 +1,10 @@
+using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.SignalR;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
+using Microsoft.Net.Http.Headers;
 using QuickCollab.Server.Data;
 using QuickCollab.Server.Data.Models;
 using QuickCollab.Server.Hubs;
@@ -16,7 +18,22 @@ public class Program
         builder.Services.AddMemoryCache();
         builder.Services.AddDbContext<QuickCollabDbContext>();
         // Add services to the container.
-        builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
+        builder.Services
+            .AddAuthentication(options =>
+            {
+                // custom scheme defined in .AddPolicyScheme() below
+                options.DefaultScheme = "JWT_OR_COOKIE";
+                options.DefaultChallengeScheme = "JWT_OR_COOKIE";
+            })
+            .AddCookie(options =>
+            {
+                options.LoginPath = "/users/login";
+                options.ExpireTimeSpan = TimeSpan.FromDays(1);
+                options.Events = new CookieAuthenticationEvents
+                {
+                    
+                };
+            })
             .AddJwtBearer(options =>
             {
                 options.TokenValidationParameters = new TokenValidationParameters()
@@ -40,13 +57,30 @@ public class Program
                         // If the request is for our hub...
                         var path = context.HttpContext.Request.Path;
                         if (!string.IsNullOrEmpty(accessToken) &&
-                            (path.StartsWithSegments("/hubs/collab-code")))
+                            (path.ToString().StartsWith("/hubs")))
                         {
                             // Read the token out of the query string
                             context.Token = accessToken;
                         }
                         return Task.CompletedTask;
                     }
+                };
+            })
+            .AddPolicyScheme("JWT_OR_COOKIE", "JWT_OR_COOKIE", options =>
+            {
+                // runs on each request
+                options.ForwardDefaultSelector = context =>
+                {
+                    // filter by auth type
+                    string authorization = context.Request.Headers[HeaderNames.Authorization];
+                    var path = context.Request.Path;
+                    if ((path.ToString().StartsWith("/hubs")) || 
+                        (!string.IsNullOrEmpty(authorization) && authorization.StartsWith("Bearer ")))
+                    {
+                        return JwtBearerDefaults.AuthenticationScheme;
+                    }
+                    // otherwise always check for cookie auth
+                    return CookieAuthenticationDefaults.AuthenticationScheme;
                 };
             });
         builder.Services
@@ -96,10 +130,12 @@ public class Program
                 .SetIsOriginAllowed(origin => true)
                 .AllowCredentials();
         });
-        app.MapHub<CollabCodeHub>("hubs/collab-code");
         app.UseHttpsRedirection();
         app.UseAuthentication();
         app.UseAuthorization();
+
+        app.MapHub<CollabCodeHub>("hubs/collab-code");
+        app.MapHub<CollabWhiteboardHub>("hubs/collab-board");
 
         app.MapControllers();
 

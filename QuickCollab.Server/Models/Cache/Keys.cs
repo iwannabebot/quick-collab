@@ -2,7 +2,7 @@
 {
     public static class Keys
     {
-        public const string RoomPass = "RoomPass";
+        public const string RoomUser = "RoomUser";
         public const string RoomActive = "RoomActive";
     }
 }

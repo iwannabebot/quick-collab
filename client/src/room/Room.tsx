@@ -27,7 +27,12 @@ export const Room: React.FC<BasePageProps> = (props) => {
     const [joinId, setJoinId] = React.useState("");
     const [roomPass, setRoomPass] = React.useState("");
 
-    
+    useEffect(() => {
+        if (location && location.state && location.state.roomId) {
+            setJoinId(location.state.roomId);
+            setJoinRoomOpen(true);
+        }
+    }, [location.pathname]);
 
     const createRoom = async (roomType: string, roomPass: string) => {
         setCreating(true);
@@ -49,7 +54,6 @@ export const Room: React.FC<BasePageProps> = (props) => {
                 const room: Room = await response.json();
                 if (room.isActive) {
                     setCreatingFail(false);
-                    sessionStorage.setItem("room:" + room.roomId, roomPass);
                     if (room.toolName == "Code") {
                         navigate("/code/" + room.roomId);
                     } else if (room.toolName == "Whiteboard") {
@@ -82,8 +86,12 @@ export const Room: React.FC<BasePageProps> = (props) => {
         setJoining(true);
         try {
             const token = getTokenWithNav(navigate);
-            const response: Response = await fetch("https://localhost:7003/room/" + roomId, {
-                method: "GET",
+            const response: Response = await fetch("https://localhost:7003/room/join", {
+                body: JSON.stringify({
+                    roomId: joinId,
+                    password: roomPass
+                }),
+                method: "POST",
                 headers: {
                     "Content-Type": "application/json",
                     "Accept": "application/json",
@@ -94,7 +102,6 @@ export const Room: React.FC<BasePageProps> = (props) => {
                 const room: Room = await response.json();
                 if (room.isActive) {
                     setJoiningFail(false);
-                    sessionStorage.setItem("room:" + room.roomId, roomPass);
                     if (room.toolName == "Code") {
                         navigate("/code/" + room.roomId);
                     } else if (room.toolName == "Whiteboard") {
@@ -186,7 +193,7 @@ export const Room: React.FC<BasePageProps> = (props) => {
                             To subscribe to this website, please enter your email address here. We
                             will send updates occasionally.
                         </DialogContentText>
-                        <TextField label="Join Room" variant="outlined" onChange={(event: ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
+                        <TextField value={joinId} label="Join Room" variant="outlined" onChange={(event: ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
                             const roomId = event.target.value as string;
                             setJoinId(roomId);
                         }} />
@@ -201,7 +208,7 @@ export const Room: React.FC<BasePageProps> = (props) => {
                             joining && <CircularProgress size={20} />
                         }
                         <Button onClick={() => {
-                            setCreateRoomOpen(false);
+                            setJoinRoomOpen(false);
                         }}>Cancel</Button>
                         <Button onClick={() => {
                             joinRoom(joinId, roomPass);
